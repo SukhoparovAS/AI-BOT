@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const archiver = require('archiver');
 const axios = require('axios');
+const presets = require('./config/presets');
 
 require('dotenv').config();
 
@@ -27,33 +28,14 @@ const User = mongoose.model('User', userSchema);
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-// Промпты для генерации
-const prompts = {
-  business: "A professional [trigger] portrait, wearing a formal business suit, high-end corporate headshot style, professional lighting, clean background",
-  casual: "A natural [trigger] portrait in soft natural lighting, casual outfit, relaxed pose, outdoor setting",
-  artistic: "An artistic [trigger] portrait with dramatic lighting, creative composition, cinematic style, vibrant colors",
-  clown: "A colorful [trigger] portrait as a circus clown, wearing traditional clown makeup, red nose, colorful wig, circus environment, cheerful expression"
-};
-
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
   const user = await User.findOne({ telegramId: chatId });
 
   if (user && user.status === 'ready') {
-    // Если у пользователя есть обученная модель, показываем клавиатуру
-    const keyboard = {
-      keyboard: [
-        ['Деловой портрет'],
-        ['Повседневный портрет'],
-        ['Художественный портрет'],
-        ['Клоун']
-      ],
-      resize_keyboard: true
-    };
-    
     bot.sendMessage(chatId, 'У вас уже есть обученная модель. Выберите стиль для генерации:', {
-      reply_markup: keyboard
+      reply_markup: presets.keyboard
     });
   } else {
     // Если нет - создаем нового пользователя или обновляем существующего
@@ -169,19 +151,8 @@ async function processPhotos(chatId) {
     fs.unlinkSync(zipPath);
     delete userPhotos[chatId];
 
-    // Отправка клавиатуры с промптами
-    const keyboard = {
-      keyboard: [
-        ['Деловой портрет'],
-        ['Повседневный портрет'],
-        ['Художественный портрет'],
-        ['Клоун']
-      ],
-      resize_keyboard: true
-    };
-    
     bot.sendMessage(chatId, 'Модель обучена! Выберите стиль для генерации:', {
-      reply_markup: keyboard
+      reply_markup: presets.keyboard
     });
 
   } catch (error) {
@@ -195,40 +166,23 @@ bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const user = await User.findOne({ telegramId: chatId });
 
-  // Проверяем существует ли пользователь
   if (!user) {
     return bot.sendMessage(chatId, 'Пожалуйста, начните с команды /start');
   }
 
   if (user.status !== 'ready') return;
 
-  let prompt;
-  switch (msg.text) {
-    case 'Деловой портрет':
-      prompt = prompts.business;
-      break;
-    case 'Повседневный портрет':
-      prompt = prompts.casual;
-      break;
-    case 'Художественный портрет':
-      prompt = prompts.artistic;
-      break;
-    case 'Клоун':
-      prompt = prompts.clown;
-      break;
-    default:
-      return;
-  }
+  const promptKey = presets.buttonToPrompt[msg.text];
+  if (!promptKey) return;
 
   try {
     bot.sendMessage(chatId, 'Генерирую изображение...');
     
     const result = await fal.subscribe("fal-ai/flux-lora", {
       input: {
-        prompt: prompt,
+        prompt: presets.prompts[promptKey],
         loras: [{
             path: user.modelUrl,
-            //scale: 1
         }]
       },
       logs: true,
@@ -239,7 +193,6 @@ bot.on('message', async (msg) => {
       },
     });
 
-    // Отправка сгенерированного изображения
     bot.sendPhoto(chatId, result.data.images[0].url);
   } catch (error) {
     console.error(error);
