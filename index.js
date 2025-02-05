@@ -173,7 +173,7 @@ bot.on('message', async (msg) => {
   if (user.status !== 'ready') return;
 
   const promptKey = presets.buttonToPrompt[msg.text];
-  if (!promptKey) return;
+  if (!promptKey) promptKey = msg.text;
 
   try {
     bot.sendMessage(chatId, 'Генерирую изображение...');
