@@ -5,6 +5,7 @@ const fs = require('fs');
 const archiver = require('archiver');
 const axios = require('axios');
 const presets = require('./config/presets');
+const { transformPrompt } = require('./services/chatgpt');
 
 require('dotenv').config();
 
@@ -173,21 +174,23 @@ bot.on('message', async (msg) => {
   if (user.status !== 'ready') return;
 
   const promptKey = presets.buttonToPrompt[msg.text];
-  let prompt = ''
-  if (!promptKey) {
-    prompt = msg.text;
-  } else{
-    prompt = presets.prompts[promptKey]
-  }
+  let prompt = '';
   
   try {
+    if (!promptKey) {
+      bot.sendMessage(chatId, 'Обрабатываю ваш промпт через ChatGPT...');
+      prompt = await transformPrompt(msg.text);
+    } else {
+      prompt = presets.prompts[promptKey];
+    }
+
     bot.sendMessage(chatId, 'Генерирую изображение...');
     
     const result = await fal.subscribe("fal-ai/flux-lora", {
       input: {
         prompt,
         loras: [{
-            path: user.modelUrl,
+          path: user.modelUrl,
         }]
       },
       logs: true,
