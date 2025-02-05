@@ -173,14 +173,19 @@ bot.on('message', async (msg) => {
   if (user.status !== 'ready') return;
 
   const promptKey = presets.buttonToPrompt[msg.text];
-  if (!promptKey) promptKey = msg.text;
-
+  let prompt = ''
+  if (!promptKey) {
+    prompt = msg.text;
+  } else{
+    prompt = presets.prompts[promptKey]
+  }
+  
   try {
     bot.sendMessage(chatId, 'Генерирую изображение...');
     
     const result = await fal.subscribe("fal-ai/flux-lora", {
       input: {
-        prompt: presets.prompts[promptKey],
+        prompt,
         loras: [{
             path: user.modelUrl,
         }]
